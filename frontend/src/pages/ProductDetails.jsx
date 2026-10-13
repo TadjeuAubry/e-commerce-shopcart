@@ -1,5 +1,6 @@
+
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useCart } from "../context/CartContext";
 import { getProductById } from "../services/productService";
 import { getProductImage } from "../utils/productImages";
@@ -17,20 +18,43 @@ const ProductDetails = () => {
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
 
+  const [addingToCart, setAddingToCart] = useState(false);
+  const [cartError, setCartError] = useState("");
+
+  // Fetch the selected product from the backend.
   useEffect(() => {
+    let isMounted = true;
+
     const loadProduct = async () => {
       try {
+        setLoading(true);
+        setError("");
+
         const data = await getProductById(id);
-        setProduct(data);
+
+        if (isMounted) {
+          setProduct(data);
+          setSelectedImage(0);
+          setQuantity(1);
+        }
       } catch (error) {
         console.error("Error loading product:", error);
-        setError(error.message);
+
+        if (isMounted) {
+          setError(error.message || "Unable to load this product.");
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     loadProduct();
+
+    return () => {
+      isMounted = false;
+    };
   }, [id]);
 
   if (loading) {
@@ -38,15 +62,22 @@ const ProductDetails = () => {
   }
 
   if (error || !product) {
-    return <p>{error || "Product not found."}</p>;
+    return (
+      <section className="product-details-page">
+        <p>{error || "Product not found."}</p>
+      </section>
+    );
   }
 
   const images = Array.isArray(product.images)
     ? product.images
-    : [product.images];
+    : product.images
+      ? [product.images]
+      : [];
 
   const currentImage = getProductImage(images[selectedImage]);
 
+  // Prevent the quantity from exceeding the available stock.
   const handleQuantityIncrease = () => {
     if (quantity < product.stock) {
       setQuantity((currentQuantity) => currentQuantity + 1);
@@ -59,23 +90,46 @@ const ProductDetails = () => {
     );
   };
 
-  const handleAddToCart = () => {
-    for (let i = 0; i < quantity; i += 1) {
-      addToCart(product);
-    } 
-    navigate("/cart");
+  // Send the selected quantity in one backend request.
+  const handleAddToCart = async () => {
+    if (addingToCart || product.stock <= 0) return;
 
+    setCartError("");
+    setAddingToCart(true);
+
+    try {
+      const result = await addToCart(product, quantity);
+
+      if (!result?.success) {
+        setCartError(
+          result?.message || "Unable to add this product to your cart."
+        );
+        return;
+      }
+
+      navigate("/cart");
+    } catch (error) {
+      setCartError(
+        error.message || "Unable to add this product to your cart."
+      );
+    } finally {
+      setAddingToCart(false);
+    }
   };
 
   return (
     <section className="product-details-page">
 
       <div className="product-details-container">
+
+        {/* Product images */}
         <div className="product-gallery">
 
           <div className="product-main-image">
-            {currentImage && (
-              <img src={currentImage} alt={product.title}/>
+            {currentImage ? (
+              <img src={currentImage} alt={product.title} />
+            ) : (
+              <span>{product.title}</span>
             )}
           </div>
 
@@ -84,20 +138,29 @@ const ProductDetails = () => {
               const imageUrl = getProductImage(image);
 
               return (
-                <button type="button" key={image} className={`product-thumbnail ${
+                <button
+                  type="button"
+                  key={`${image}-${index}`}
+                  className={`product-thumbnail ${
                     selectedImage === index ? "active" : ""
                   }`}
                   onClick={() => setSelectedImage(index)}
+                  aria-label={`View product image ${index + 1}`}
                 >
                   {imageUrl && (
-                    <img src={imageUrl} alt={`${product.title} view ${index + 1}`} />
+                    <img
+                      src={imageUrl}
+                      alt={`${product.title} view ${index + 1}`}
+                    />
                   )}
                 </button>
               );
             })}
           </div>
+
         </div>
 
+        {/* Product information */}
         <div className="product-details-info">
 
           <span className="product-details-category">
@@ -112,16 +175,16 @@ const ProductDetails = () => {
 
           <div className="product-details-rating">
             <span>★ {product.rating}</span>
-            <span> {product.reviewsCount} reviews </span>
+            <span>{product.reviewsCount} reviews</span>
           </div>
 
           <div className="product-details-price">
-            ${product.price.toFixed(2)}
+            ${Number(product.price).toFixed(2)}
           </div>
 
-          {product.monthlyPrice && (
+          {product.monthlyPrice != null && (
             <p className="monthly-price">
-              Or ${product.monthlyPrice.toFixed(2)} / month
+              Or ${Number(product.monthlyPrice).toFixed(2)} / month
             </p>
           )}
 
@@ -137,26 +200,56 @@ const ProductDetails = () => {
               : "Out of stock"}
           </div>
 
-          <div className="quantity-section">
 
-            <span>Quantity</span>
-            <div className="quantity-control">
+          {product.stock > 0 && (
+            <div className="quantity-section">
 
-              <button type="button" onClick={handleQuantityDecrease} >
-                -
-              </button>
-              <span>{quantity}</span>
-              <button type="button"  onClick={handleQuantityIncrease}>
-                +
-              </button>
+              <span>Quantity</span>
 
+              <div className="quantity-control">
+
+                <button type="button" onClick={handleQuantityDecrease} 
+                disabled={
+                  quantity <= 1 || addingToCart
+                }
+                  aria-label="Decrease quantity"
+                >
+                  -
+                </button>
+
+                <span>{quantity}</span>
+
+                <button type="button" onClick={handleQuantityIncrease}
+                  disabled={
+                    quantity >= product.stock || addingToCart
+                  }
+                  aria-label="Increase quantity"
+                >
+                  +
+                </button>
+
+              </div>
             </div>
-          </div>
+          )}
 
-          <button type="button"  className="details-add-to-cart" disabled={product.stock === 0} onClick={handleAddToCart}>
-            {product.stock === 0
+          {cartError && (
+            <div className="product-cart-error" role="alert">
+              <p>{cartError}</p>
+
+              {!localStorage.getItem("shopcartToken") && (
+                <Link to="/login">Log in to continue</Link>
+              )}
+            </div>
+          )}
+
+          <button type="button" className="details-add-to-cart" disabled={product.stock <= 0 || addingToCart}
+            onClick={handleAddToCart}
+          >
+            {product.stock <= 0
               ? "Out of Stock"
-              : "Add to Cart"}
+              : addingToCart
+                ? "Adding..."
+                : "Add to Cart"}
           </button>
 
         </div>

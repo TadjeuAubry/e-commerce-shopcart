@@ -1,8 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  getAdminOrders,
-  updateAdminOrderStatus,
-} from "../services/adminService";
+import { getAdminOrders, updateAdminOrderStatus,} from "../services/adminService";
 import "../style/AdminOrders.css";
 
 const ORDER_STATUSES = [
@@ -30,12 +27,13 @@ const AdminOrders = () => {
   const [error, setError] = useState("");
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
   const [notice, setNotice] = useState("");
+  const [selectedOrder, setSelectedOrder] = useState(null);
 
-  // Load orders from the backend.
   const loadOrders = async () => {
     try {
       setLoading(true);
       setError("");
+      setNotice("");
 
       const result = await getAdminOrders();
 
@@ -86,6 +84,36 @@ const AdminOrders = () => {
     }
   };
 
+  const getShippingAddress = (order) => {
+  const address =
+    order.shippingAddress ||
+    order.deliveryAddress ||
+    order.address;
+
+  if (!address) return "Not provided";
+
+  if (typeof address === "string") return address;
+
+  if (typeof address === "object") {
+    const parts = [
+      address.fullName,
+      address.addressLine1,
+      address.addressLine2,
+      address.street,
+      address.city,
+      address.region,
+      address.state,
+      address.postalCode,
+      address.zipCode,
+      address.country,
+    ].filter(Boolean);
+
+    return parts.length ? parts.join(", ") : "Not provided";
+  }
+
+  return "Not provided";
+};
+
   // Get a readable customer name.
   const getCustomerName = (order) =>
     order.user?.name ||
@@ -120,7 +148,7 @@ const AdminOrders = () => {
       </section>
     );
   }
-
+ 
   return (
     <section className="admin-orders-page">
       <div className="admin-orders-heading">
@@ -162,6 +190,7 @@ const AdminOrders = () => {
                 <th>Total</th>
                 <th>Date</th>
                 <th>Status</th>
+                <th>Details</th>
               </tr>
             </thead>
 
@@ -228,6 +257,12 @@ const AdminOrders = () => {
                         <small>Saving...</small>
                       )}
                     </td>
+
+                    <td>
+                        <button type="button" className="order-view-btn" onClick={() => setSelectedOrder(order)}>
+                          View Details
+                        </button>
+                     </td>
                   </tr>
                 );
               })}
@@ -235,6 +270,161 @@ const AdminOrders = () => {
           </table>
         </div>
       )}
+
+      {selectedOrder && (
+  <div
+    className="order-modal-backdrop"
+    onClick={(event) => {
+      if (event.target === event.currentTarget) {
+        setSelectedOrder(null);
+      }
+    }}
+  >
+    <section
+      className="order-details-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="order-details-title"
+    >
+      <div className="order-details-header">
+        <div>
+          <h2 id="order-details-title">Order Details</h2>
+          <p>
+            Order #{String(selectedOrder._id).slice(-8)}
+          </p>
+        </div>
+
+        <button
+          type="button"
+          className="order-close-btn"
+          onClick={() => setSelectedOrder(null)}
+          aria-label="Close order details"
+        >
+          ×
+        </button>
+      </div>
+
+      <div className="order-details-grid">
+        <div>
+          <strong>Customer</strong>
+          <span>{getCustomerName(selectedOrder)}</span>
+        </div>
+
+        <div>
+          <strong>Email</strong>
+          <span>
+            {selectedOrder.user?.email ||
+              selectedOrder.customer?.email ||
+              "Not provided"}
+          </span>
+        </div>
+
+        <div>
+          <strong>Phone</strong>
+          <span>
+            {selectedOrder.user?.phone ||
+              selectedOrder.customer?.phone ||
+              selectedOrder.shippingAddress?.phone ||
+              "Not provided"}
+          </span>
+        </div>
+
+        <div>
+          <strong>Order date</strong>
+          <span>{formatDate(selectedOrder.createdAt)}</span>
+        </div>
+
+        <div>
+          <strong>Status</strong>
+          <span>
+            {selectedOrder.status || "Pending"}
+          </span>
+        </div>
+
+        <div>
+          <strong>Delivery address</strong>
+          <span>
+            {getShippingAddress(selectedOrder)}
+          </span>
+        </div>
+      </div>
+
+      <h3>Ordered Products</h3>
+
+      {Array.isArray(selectedOrder.items) &&
+      selectedOrder.items.length > 0 ? (
+        <div className="order-details-table-wrapper">
+          <table className="order-details-table">
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Quantity</th>
+                <th>Unit Price</th>
+                <th>Subtotal</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {selectedOrder.items.map((item, index) => {
+                const productName =
+                  item.product?.name ||
+                  item.productName ||
+                  item.name ||
+                  item.title ||
+                  "Product";
+
+                const quantity = Number(item.quantity ?? 1);
+
+                const price = Number(
+                  item.price ?? item.product?.price ?? 0
+                );
+
+                return (
+                  <tr key={
+                      item._id ||
+                      item.product?._id ||
+                      `${productName}-${index}`
+                    }
+                  >
+                    <td>{productName}</td>
+                    <td>{quantity}</td>
+                    <td>
+                      {price.toLocaleString(undefined, {
+                        maximumFractionDigits: 2,
+                      })}
+                    </td>
+                    <td>
+                      {(price * quantity).toLocaleString(
+                        undefined,
+                        { maximumFractionDigits: 2 }
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p>No item details were returned for this order.</p>
+      )}
+
+      <div className="order-details-total">
+        <strong>Order Total</strong>
+
+        <strong>
+          {getOrderTotal(selectedOrder).toLocaleString(
+            undefined,
+            {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            }
+          )}
+        </strong>
+      </div>
+    </section>
+  </div>
+)}
     </section>
   );
 };

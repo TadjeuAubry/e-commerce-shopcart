@@ -16,10 +16,11 @@ const AdminDashboard = () => {
     user = {};
   }
 
-  // Log out and return to the login page
   const handleLogout = () => {
     localStorage.removeItem("shopcartToken");
     localStorage.removeItem("shopcartUser");
+    
+    window.dispatchEvent(new Event("shopcart-auth-changed"));
 
     navigate("/login", { replace: true });
   };
@@ -32,28 +33,19 @@ const AdminDashboard = () => {
         <p className="admin-sidebar-label">ADMINISTRATION</p>
 
         <nav className="admin-navigation">
-          <button
-            type="button"
-            className="admin-nav-item active"
-          >
+          <button type="button" className="admin-nav-item active">
             <span>▦</span>
             Dashboard
           </button>
 
-          <button
-            type="button"
-            className="admin-nav-item"
+          <button type="button" className="admin-nav-item"
             onClick={() => navigate("/admin/products")}
           >
             <span>□</span>
             Products
           </button>
 
-          <button
-            type="button"
-            className="admin-nav-item"
-            onClick={() => navigate("/admin/users")}
-          >
+          <button type="button" className="admin-nav-item" onClick={() => navigate("/admin/users")} >
             <span>♙</span>
             Users
           </button>

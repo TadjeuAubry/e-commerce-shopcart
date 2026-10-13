@@ -11,22 +11,12 @@ import AdminProducts from "./pages/AdminProducts";
 import AdminUsers from "./pages/AdminUsers";
 import AdminOrders from "./pages/AdminOrders";
 import Register from "./pages/Register";
+import MyOrders from "./pages/MyOrders";
+import CustomerDashboard from "./pages/CustomerDashboard";
+import Checkout from "./pages/Checkout";
+import OrderConfirmation from "./pages/OrderConfirmation";
+import Products from "./pages/Products";
 
-const Products = () => {
-  return <h1>ShopCart Products</h1>;
-};
-
-const Checkout = () => {
-  return <h1>Checkout</h1>;
-};
-
-const Account = () => {
-  return <h1>My Account</h1>;
-};
-
-const Orders = () => {
-  return <h1>My Orders</h1>;
-};
 
 const App = () => {
   return (
@@ -39,10 +29,11 @@ const App = () => {
           <Route path="/products/:id" element={<ProductDetails />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/checkout" element={<Checkout />} />
+          <Route path="/order-confirmation" element={<OrderConfirmation />}/>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="/account" element={<Account />} />
-          <Route path="/orders" element={<Orders />} />
+          <Route path="/account" element={<CustomerDashboard />} />
+          <Route path="/orders" element={<MyOrders />} />
         </Route> 
         <Route path="/admin" element={ <ProtectedAdminRoute> <AdminDashboard /> </ProtectedAdminRoute> }/>
        <Route path="/admin/products" element={ <ProtectedAdminRoute> <AdminProducts /> </ProtectedAdminRoute>}/>

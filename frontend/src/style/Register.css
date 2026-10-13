@@ -162,6 +162,38 @@
   color: #0b5e37;
 }
 
+
+/* Field-level validation */
+
+.register-input[aria-invalid="true"] {
+  border-color: #b42318;
+  background: #fffafa;
+}
+
+.register-input[aria-invalid="true"]:focus {
+  border-color: #b42318;
+  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.1);
+}
+
+.register-field-error {
+  margin: 0;
+  color: #b42318;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.register-field-hint {
+  margin: 0;
+  color: #667085;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.register-error {
+  overflow-wrap: anywhere;
+}
+
+
 @media (max-width: 520px) {
   .register-card {
     padding: 26px 20px;

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import ProductCard from "./ProductCard";
 import { getProducts } from "../services/productService";
 import "../style/FeaturedProducts.css";
@@ -9,51 +10,104 @@ const FeaturedProducts = () => {
   const [error, setError] = useState("");
 
   useEffect(() => {
+
+    let isMounted = true;
+
     const loadProducts = async () => {
       try {
+        setLoading(true);
+        setError("");
+
         const data = await getProducts();
-        setProducts(data);
-      } catch (err) {
-        console.error("error loading product:", err)
-        setError(err.message);
+
+        if (isMounted) {
+          setProducts(Array.isArray(data) ? data : []);
+        
+        }
+       
+      } 
+       catch (err) {
+        console.error("error loading product:", err);
+
+        if (isMounted) {
+          setError(
+            err.message || "Unable to load featured products."
+          );
+        }
+       
       } finally {
-        setLoading(false);
+       if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     loadProducts();
+  return () => {
+      isMounted = false;
+    };
   }, []);
 
+   const featuredProducts = products.slice(0, 4);
+
   return (
-    <section className="featured-products-section">
+    <section className="featured-products-section"
+      aria-labelledby="featured-products-title"
+    >
 
       <div className="featured-products-heading">
-
-        <div>
+        <div className="featured-products-heading-content">
           <span className="featured-products-label">
-            OUR PRODUCTS
+            OUR COLLECTION
           </span>
 
-          <h2>Featured Products</h2>
+          <h2 id="featured-products-title">
+            Featured Products
+          </h2>
+
           <p>
-            Discover some of our most popular products.
+            Discover quality products, explore your favourites,
+            and find something that suits your needs.
           </p>
         </div>
 
+        <Link to="/products" className="view-all-button" >
+          View All 
+          <span aria-hidden="true">→</span>
+        </Link>
       </div>
 
-      {loading && <p>Loading products...</p>}
+      {loading && (
+        <div className="featured-products-message">
+          <p>Loading products...</p>
+        </div>
+      )}
 
-      {error && <p>{error}</p>}
+      {!loading && error && (
+        <div className="featured-products-message featured-products-error" role="alert">
+          <p>{error}</p>
+          <Link to="/products"> Browse All Products </Link>
+        </div>
+      )}
 
-      {!loading && !error && (
+      {!loading && !error && featuredProducts.length > 0 && (
         <div className="featured-products-grid">
-          {products.slice(0, 4).map((product) => (
-            <ProductCard key={product._id} product={product} />
+          {featuredProducts.map((product) => (
+            <ProductCard key={product._id}
+             product={product}
+            />
           ))}
         </div>
       )}
 
+      {/* Empty state */}
+      {!loading && !error && featuredProducts.length === 0 && (
+        <div className="featured-products-message">
+          <p>No products are available yet.</p>
+
+          <Link to="/products"> Browse Products </Link>
+        </div>
+      )}
     </section>
   );
 };

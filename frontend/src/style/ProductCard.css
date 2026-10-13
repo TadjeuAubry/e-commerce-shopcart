@@ -109,3 +109,24 @@
   background: #22563d;
   transform: translateY(-2px);
 }
+
+.product-cart-error {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid #f3c7c7;
+  border-radius: 6px;
+  background: #fff3f3;
+  color: #a61b1b;
+  font-size: 13px;
+}
+
+.product-cart-error p {
+  margin: 0 0 6px;
+  overflow-wrap: anywhere;
+}
+
+.product-cart-error a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+}

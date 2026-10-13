@@ -79,7 +79,6 @@
 }
 
 /* Mobile view */
-
 @media (max-width: 850px) {
   .hero-section {
     flex-direction: column;

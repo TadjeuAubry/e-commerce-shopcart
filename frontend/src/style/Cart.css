@@ -287,6 +287,39 @@
   color: #6b7280;
 }
 
+
+.cart-loading-state {
+  min-height: 350px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.cart-error-message {
+  margin: 18px 0;
+  padding: 14px 16px;
+  border: 1px solid #f3c7c7;
+  border-radius: 8px;
+  background: #fff3f3;
+  color: #a61b1b;
+}
+
+.cart-error-message p {
+  margin: 0 0 10px;
+  overflow-wrap: anywhere;
+}
+
+.cart-error-message button {
+  padding: 8px 12px;
+  border: 1px solid #d9a2a2;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #a61b1b;
+  cursor: pointer;
+}
+
+
 /* Tablet */
 @media (max-width: 1000px) {
   .cart-layout {

@@ -1,80 +1,231 @@
-
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { registerUser } from "../services/authService";
 import Logo from "../assets/home/Logo.jpg";
 import "../style/Register.css";
 
+const INITIAL_FORM = {
+  name: "",
+  email: "",
+  phone: "",
+  password: "",
+  confirmPassword: "",
+};
+
+// Validate individual registration fields.
+const validateRegisterField = (name, value, formData) => {
+  const trimmedValue = value.trim();
+
+  switch (name) {
+    case "name":
+      if (!trimmedValue) {
+        return "Full name is required.";
+      }
+
+      if (trimmedValue.length < 2) {
+        return "Full name must contain at least 2 characters.";
+      }
+
+      return "";
+
+    case "email": {
+      if (!trimmedValue) {
+        return "Email address is required.";
+      }
+
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+      if (!emailPattern.test(trimmedValue)) {
+        return "Please enter a valid email address.";
+      }
+
+      return "";
+    }
+
+    case "phone":
+      if (!trimmedValue) {
+        return "Phone number is required.";
+      }
+
+      if (trimmedValue.length < 6) {
+        return "Phone number must contain at least 6 characters.";
+      }
+
+      return "";
+
+    case "password":
+      if (!value) {
+        return "Password is required.";
+      }
+
+      if (value.length < 8) {
+        return "Password must contain at least 8 characters.";
+      }
+
+      if (!/[A-Za-z]/.test(value)) {
+        return "Password must contain at least one letter.";
+      }
+
+      if (!/[0-9]/.test(value)) {
+        return "Password must contain at least one number.";
+      }
+
+      return "";
+
+    case "confirmPassword":
+      if (!value) {
+        return "Please confirm your password.";
+      }
+
+      if (value !== formData.password) {
+        return "Passwords do not match.";
+      }
+
+      return "";
+
+    default:
+      return "";
+  }
+};
+
+const validateRegisterForm = (formData) => {
+  const errors = {};
+
+  Object.keys(INITIAL_FORM).forEach((field) => {
+    const message = validateRegisterField(
+      field,
+      formData[field],
+      formData
+    );
+
+    if (message) {
+      errors[field] = message;
+    }
+  });
+
+  return errors;
+};
+
 const Register = () => {
   const navigate = useNavigate();
 
-  // Store the information entered by the user.
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    password: "",
-    confirmPassword: ""
-  });
-
-  // Store form feedback and loading status.
+  const [formData, setFormData] = useState(INITIAL_FORM);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  // Update the corresponding field whenever the user types.
+  // Update a field and revalidate fields that already show errors.
   const handleChange = (event) => {
     const { name, value } = event.target;
 
-    setFormData((previousData) => ({
-      ...previousData,
-      [name]: value
-    }));
+    const updatedForm = {
+      ...formData,
+      [name]: value,
+    };
 
-    // Clear old messages when the user changes a field.
+    setFormData(updatedForm);
     setErrorMessage("");
     setSuccessMessage("");
+
+    setFieldErrors((previousErrors) => {
+      const updatedErrors = { ...previousErrors };
+
+      // Revalidate the edited field if it has already been checked.
+      if (previousErrors[name]) {
+        const message = validateRegisterField(
+          name,
+          value,
+          updatedForm
+        );
+
+        if (message) {
+          updatedErrors[name] = message;
+        } else {
+          delete updatedErrors[name];
+        }
+      }
+
+      // If the password changes, the confirmation may no longer match.
+      if (
+        name === "password" &&
+        (previousErrors.confirmPassword ||
+          updatedForm.confirmPassword)
+      ) {
+        const confirmationMessage = validateRegisterField(
+          "confirmPassword",
+          updatedForm.confirmPassword,
+          updatedForm
+        );
+
+        if (confirmationMessage) {
+          updatedErrors.confirmPassword = confirmationMessage;
+        } else {
+          delete updatedErrors.confirmPassword;
+        }
+      }
+
+      return updatedErrors;
+    });
   };
 
-  // Validate the form and submit the registration request.
+  // Show validation feedback when leaving a field.
+  const handleBlur = (event) => {
+    const { name, value } = event.target;
+    const message = validateRegisterField(
+      name,
+      value,
+      formData
+    );
+
+    setFieldErrors((previousErrors) => {
+      const updatedErrors = { ...previousErrors };
+
+      if (message) {
+        updatedErrors[name] = message;
+      } else {
+        delete updatedErrors[name];
+      }
+
+      return updatedErrors;
+    });
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
 
     setErrorMessage("");
     setSuccessMessage("");
 
-    // Ensure both passwords match.
-    if (formData.password !== formData.confirmPassword) {
-      setErrorMessage("Passwords do not match.");
-      return;
-    }
+    const errors = validateRegisterForm(formData);
+    setFieldErrors(errors);
 
-    // Avoid sending a password that is too short.
-    if (formData.password.length < 8) {
-      setErrorMessage("Password must contain at least 8 characters.");
+    if (Object.keys(errors).length > 0) {
+      setErrorMessage("Please correct the highlighted fields.");
       return;
     }
 
     setIsLoading(true);
 
     try {
-      // Send only fields required for account registration.
+      // Do not send confirmPassword to the backend.
       const result = await registerUser({
         name: formData.name.trim(),
         email: formData.email.trim(),
         phone: formData.phone.trim(),
-        password: formData.password
+        password: formData.password,
       });
 
       setSuccessMessage(
-        result.message || "Registration successful! You can now sign in."
+        result.message ||
+          "Registration successful! You can now sign in."
       );
 
+      // Keep the success message visible briefly before redirecting.
       setTimeout(() => {
         navigate("/login", { replace: true });
       }, 1200);
-    } 
-      catch (error) {
+    } catch (error) {
       setErrorMessage(
         error.message || "Registration failed. Please try again."
       );
@@ -86,123 +237,232 @@ const Register = () => {
   return (
     <main className="register-page">
       <section className="register-card">
+
         <Link to="/" className="register-logo">
-           <img src={Logo} alt="logo" />
+          <img src={Logo} alt="ShopCart logo" />
           ShopCart
         </Link>
 
-        <h1 className="register-title">Create your account</h1>
+        <h1 className="register-title">
+          Create your account
+        </h1>
 
         <p className="register-subtitle">
-          Join ShopCart and start discovering your favorite products.
+          Join ShopCart and start discovering your favourite products.
         </p>
 
-        <form className="register-form" onSubmit={handleSubmit}>
+        <form
+          className="register-form"
+          onSubmit={handleSubmit}
+          noValidate
+        >
+          {/* Full name */}
           <div className="register-field">
-            <label htmlFor="name" className="register-label">
+            <label htmlFor="register-name" className="register-label">
               Full name
             </label>
 
             <input
-              id="name"
+              id="register-name"
               name="name"
               type="text"
               className="register-input"
               placeholder="Enter your full name"
               value={formData.name}
               onChange={handleChange}
+              onBlur={handleBlur}
               autoComplete="name"
               required
+              aria-invalid={Boolean(fieldErrors.name)}
+              aria-describedby={
+                fieldErrors.name ? "register-name-error" : undefined
+              }
+              disabled={isLoading}
             />
+
+            {fieldErrors.name && (
+              <p
+                id="register-name-error"
+                className="register-field-error"
+              >
+                {fieldErrors.name}
+              </p>
+            )}
           </div>
 
+          {/* Email */}
           <div className="register-field">
-            <label htmlFor="email" className="register-label">
+            <label htmlFor="register-email" className="register-label">
               Email address
             </label>
 
             <input
-              id="email"
+              id="register-email"
               name="email"
               type="email"
               className="register-input"
               placeholder="Enter your email"
               value={formData.email}
               onChange={handleChange}
+              onBlur={handleBlur}
               autoComplete="email"
               required
+              aria-invalid={Boolean(fieldErrors.email)}
+              aria-describedby={
+                fieldErrors.email ? "register-email-error" : undefined
+              }
+              disabled={isLoading}
             />
+
+            {fieldErrors.email && (
+              <p
+                id="register-email-error"
+                className="register-field-error"
+              >
+                {fieldErrors.email}
+              </p>
+            )}
           </div>
 
+          {/* Phone */}
           <div className="register-field">
-            <label htmlFor="phone" className="register-label">
+            <label htmlFor="register-phone" className="register-label">
               Phone number
             </label>
 
             <input
-              id="phone"
+              id="register-phone"
               name="phone"
               type="tel"
               className="register-input"
               placeholder="Enter your phone number"
               value={formData.phone}
               onChange={handleChange}
+              onBlur={handleBlur}
               autoComplete="tel"
               required
+              aria-invalid={Boolean(fieldErrors.phone)}
+              aria-describedby={
+                fieldErrors.phone ? "register-phone-error" : undefined
+              }
+              disabled={isLoading}
             />
+
+            {fieldErrors.phone && (
+              <p
+                id="register-phone-error"
+                className="register-field-error"
+              >
+                {fieldErrors.phone}
+              </p>
+            )}
           </div>
 
+          {/* Password */}
           <div className="register-field">
-            <label htmlFor="password" className="register-label">
+            <label
+              htmlFor="register-password"
+              className="register-label"
+            >
               Password
             </label>
 
             <input
-              id="password"
+              id="register-password"
               name="password"
               type="password"
               className="register-input"
               placeholder="Create a password"
               value={formData.password}
               onChange={handleChange}
+              onBlur={handleBlur}
               autoComplete="new-password"
               minLength={8}
               required
+              aria-invalid={Boolean(fieldErrors.password)}
+              aria-describedby={
+                fieldErrors.password
+                  ? "register-password-error"
+                  : "register-password-help"
+              }
+              disabled={isLoading}
             />
+
+            <p
+              id="register-password-help"
+              className="register-field-hint"
+            >
+              Use at least 8 characters, including a letter and a number.
+            </p>
+
+            {fieldErrors.password && (
+              <p
+                id="register-password-error"
+                className="register-field-error"
+              >
+                {fieldErrors.password}
+              </p>
+            )}
           </div>
 
+          {/* Confirm password */}
           <div className="register-field">
-            <label htmlFor="confirmPassword" className="register-label">
+            <label
+              htmlFor="register-confirm-password"
+              className="register-label"
+            >
               Confirm password
             </label>
 
             <input
-              id="confirmPassword"
+              id="register-confirm-password"
               name="confirmPassword"
               type="password"
               className="register-input"
               placeholder="Enter your password again"
               value={formData.confirmPassword}
               onChange={handleChange}
+              onBlur={handleBlur}
               autoComplete="new-password"
-              minLength={8}
               required
+              aria-invalid={Boolean(fieldErrors.confirmPassword)}
+              aria-describedby={
+                fieldErrors.confirmPassword
+                  ? "register-confirm-password-error"
+                  : undefined
+              }
+              disabled={isLoading}
             />
+
+            {fieldErrors.confirmPassword && (
+              <p
+                id="register-confirm-password-error"
+                className="register-field-error"
+              >
+                {fieldErrors.confirmPassword}
+              </p>
+            )}
           </div>
 
+          {/* General error */}
           {errorMessage && (
             <p className="register-error" role="alert">
               {errorMessage}
             </p>
           )}
 
+          {/* Success message */}
           {successMessage && (
             <p className="register-success" role="status">
               {successMessage}
             </p>
           )}
 
-          <button type="submit" className="register-button" disabled={isLoading} >
+          <button
+            type="submit"
+            className="register-button"
+            disabled={isLoading}
+          >
             {isLoading ? "Creating account..." : "Create account"}
           </button>
         </form>
@@ -215,6 +475,7 @@ const Register = () => {
         <Link to="/" className="register-back-link">
           Back to shopping
         </Link>
+
       </section>
     </main>
   );
