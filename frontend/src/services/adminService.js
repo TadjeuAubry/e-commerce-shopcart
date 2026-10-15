@@ -109,3 +109,45 @@ export const updateAdminOrderStatus = async (orderId, status) =>
     method: "PATCH",
     body: JSON.stringify({ orderStatus: status }),
   });
+
+
+  
+export const uploadAdminProductImage = async (file) => {
+  const token = localStorage.getItem("shopcartToken");
+
+  if (!token) {
+    throw new Error("Please log in as an administrator.");
+  }
+
+  if (!(file instanceof File)) {
+    throw new Error("Please select a valid image file.");
+  }
+
+  // The browser constructs the multipart/form-data request.
+  const formData = new FormData();
+  formData.append("image", file);
+
+  const response = await fetch(`${API_URL}/products/upload-image`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  let result;
+
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error("The server returned an invalid response.");
+  }
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message || "Unable to upload the product image."
+    );
+  }
+
+  return result;
+};

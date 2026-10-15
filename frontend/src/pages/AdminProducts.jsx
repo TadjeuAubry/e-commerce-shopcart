@@ -1,12 +1,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  getAdminProducts,
-  createAdminProduct,
-  updateAdminProduct,
-  deleteAdminProduct
-} from "../services/adminService";
+import { getAdminProducts, createAdminProduct, updateAdminProduct, deleteAdminProduct, uploadAdminProductImage,} from "../services/adminService";
 import "../style/AdminProducts.css";
 
 // Load image assets from src/assets/products.
@@ -19,7 +14,6 @@ const productImageModules = import.meta.glob(
   }
 );
 
-// Resolve a filename stored in MongoDB to its imported image URL.
 const resolveProductImage = (imageValue) => {
   if (typeof imageValue !== "string" || !imageValue.trim()) {
     return "";
@@ -31,9 +25,7 @@ const resolveProductImage = (imageValue) => {
     return imagePath;
   }
 
-  const cleanPath = imagePath
-    .replace(/\\/g, "/")
-    .split(/[?#]/)[0];
+  const cleanPath = imagePath .replace(/\\/g, "/") .split(/[?#]/)[0];
 
   const fileName = cleanPath.split("/").pop().toLowerCase();
 
@@ -44,7 +36,6 @@ const resolveProductImage = (imageValue) => {
   return match ? match[1] : "";
 };
 
-// Empty values used by the create form and after saving.
 const createEmptyProductForm = () => ({
   title: "",
   subtitle: "",
@@ -74,6 +65,10 @@ const AdminProducts = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [deletingProductId, setDeletingProductId] = useState(null);
   const [formData, setFormData] = useState(createEmptyProductForm);
+  const [selectedImageFiles, setSelectedImageFiles] = useState([]);
+  const [previewImages, setPreviewImages] = useState([]);
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   // Load products from the backend.
   const loadProducts = useCallback(async () => {
@@ -109,12 +104,91 @@ const AdminProducts = () => {
     }));
   };
 
+
+
+const handleImageFilesChange = (event) => {
+  const files = Array.from(event.target.files || []);
+
+  if (files.length === 0) return;
+
+  const allowedTypes = new Set([
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+  ]);
+
+  const invalidFile = files.find(
+    (file) => !allowedTypes.has(file.type)
+  );
+
+  if (invalidFile) {
+    setErrorMessage(
+      "Only JPG, PNG, and WEBP images are allowed."
+    );
+    event.target.value = "";
+    return;
+  }
+
+  const oversizedFile = files.find(
+    (file) => file.size > 5 * 1024 * 1024
+  );
+
+  if (oversizedFile) {
+    setErrorMessage(
+      "Each image must be 5 MB or smaller."
+    );
+    event.target.value = "";
+    return;
+  }
+
+  // Generate local previews before uploading.
+  const previews = files.map((file) => ({
+    file,
+    url: URL.createObjectURL(file),
+  }));
+
+  setErrorMessage("");
+  setSelectedImageFiles(files);
+  setPreviewImages(previews);
+
+  // Allow the same file to be selected again later.
+  event.target.value = "";
+};
+
+// Release temporary browser URLs when previews change or unmount.
+useEffect(() => {
+  return () => {
+    previewImages.forEach(({ url }) => {
+      URL.revokeObjectURL(url);
+    });
+  };
+}, [previewImages]);
+
+const removeExistingImage = (imageToRemove) => {
+  const remainingImages = formData.images
+    .split(",")
+    .map((image) => image.trim())
+    .filter(Boolean)
+    .filter((image) => image !== imageToRemove);
+
+  setFormData((previous) => ({
+    ...previous,
+    images: remainingImages.join(", "),
+  }));
+};
+
+
+
+
   // Open a blank form for creating a product.
   const openCreateForm = () => {
     setErrorMessage("");
     setSuccessMessage("");
     setEditingProductId(null);
-    setFormData(createEmptyProductForm());
+    setFormData(createEmptyProductForm()); 
+    setSelectedImageFiles([]);
+    setPreviewImages([]);
+    setUploadProgress(0);
     setShowProductForm(true);
   };
 
@@ -123,6 +197,7 @@ const AdminProducts = () => {
     setErrorMessage("");
     setSuccessMessage("");
     setEditingProductId(product._id);
+    
 
     const images = Array.isArray(product.images)
       ? product.images
@@ -150,98 +225,138 @@ const AdminProducts = () => {
       filters: JSON.stringify(product.filters ?? {}, null, 2)
     });
 
+    setSelectedImageFiles([]);
+    setPreviewImages([]);
+    setUploadProgress(0);
     setShowProductForm(true);
 
-    // Bring the form into view after the React state updates.
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // Close the create/edit form.
   const closeProductForm = () => {
     setShowProductForm(false);
     setEditingProductId(null);
     setFormData(createEmptyProductForm());
+    setSelectedImageFiles([]);
+    setPreviewImages([]);
+    setUploadProgress(0);
     setErrorMessage("");
   };
 
-  // Create or update a product.
-  const handleSubmitProduct = async (event) => {
-    event.preventDefault();
-    setErrorMessage("");
-    setSuccessMessage("");
+ 
+const handleSubmitProduct = async (event) => {
+  event.preventDefault();
 
-    const price = Number(formData.price);
-    const monthlyPrice = Number(formData.monthlyPrice);
-    const stock = Number(formData.stock);
-    const discountPercent = Number(formData.discountPercent);
+  setErrorMessage("");
+  setSuccessMessage("");
 
-    if (!Number.isFinite(price) || price < 0) {
-      setErrorMessage("Price must be a non-negative number.");
-      return;
+  const price = Number(formData.price);
+  const monthlyPrice = Number(formData.monthlyPrice);
+  const stock = Number(formData.stock);
+  const discountPercent = Number(formData.discountPercent);
+
+  if (!Number.isFinite(price) || price < 0) {
+    setErrorMessage("Price must be a non-negative number.");
+    return;
+  }
+
+  if (!Number.isFinite(monthlyPrice) || monthlyPrice < 0) {
+    setErrorMessage("Monthly price must be a non-negative number.");
+    return;
+  }
+
+  if (!Number.isInteger(stock) || stock < 0) {
+    setErrorMessage("Stock must be a non-negative whole number.");
+    return;
+  }
+
+  if (
+    !Number.isFinite(discountPercent) ||
+    discountPercent < 0 ||
+    discountPercent > 100
+  ) {
+    setErrorMessage("Discount must be between 0 and 100.");
+    return;
+  }
+
+  let parsedFilters;
+
+  try {
+    parsedFilters = JSON.parse(formData.filters || "{}");
+  } catch {
+    setErrorMessage("Filters must contain valid JSON.");
+    return;
+  }
+
+  if (
+    parsedFilters === null ||
+    typeof parsedFilters !== "object" ||
+    Array.isArray(parsedFilters)
+  ) {
+    setErrorMessage("Filters must be a JSON object.");
+    return;
+  }
+
+  const existingImages = formData.images
+    .split(",")
+    .map((image) => image.trim())
+    .filter(Boolean);
+
+  const colors = formData.colors
+    .split(",")
+    .map((color) => color.trim())
+    .filter(Boolean);
+
+  if (
+    existingImages.length === 0 &&
+    selectedImageFiles.length === 0
+  ) {
+    setErrorMessage("Please provide at least one product image.");
+    return;
+  }
+
+  if (colors.length === 0) {
+    setErrorMessage("Please provide at least one product color.");
+    return;
+  }
+
+  const existingProduct = products.find(
+    (product) => product._id === editingProductId
+  );
+
+  setIsSaving(true);
+  setIsUploadingImages(false);
+  setUploadProgress(0);
+
+  try {
+    const uploadedImages = [];
+
+    // Upload selected images to Cloudinary first.
+    if (selectedImageFiles.length > 0) {
+      setIsUploadingImages(true);
+
+      for (let index = 0; index < selectedImageFiles.length; index += 1) {
+        setUploadProgress(index + 1);
+
+        const result = await uploadAdminProductImage(
+          selectedImageFiles[index]
+        );
+
+        const imageUrl = result?.data?.url;
+
+        if (!imageUrl) {
+          throw new Error(
+            "Cloudinary did not return an image URL."
+          );
+        }
+
+        uploadedImages.push(imageUrl);
+      }
+
+      setIsUploadingImages(false);
     }
 
-    if (!Number.isFinite(monthlyPrice) || monthlyPrice < 0) {
-      setErrorMessage("Monthly price must be a non-negative number.");
-      return;
-    }
-
-    if (!Number.isInteger(stock) || stock < 0) {
-      setErrorMessage("Stock must be a non-negative whole number.");
-      return;
-    }
-
-    if (
-      !Number.isFinite(discountPercent) ||
-      discountPercent < 0 ||
-      discountPercent > 100
-    ) {
-      setErrorMessage("Discount must be between 0 and 100.");
-      return;
-    }
-
-    let parsedFilters;
-
-    try {
-      parsedFilters = JSON.parse(formData.filters || "{}");
-    } catch {
-      setErrorMessage("Filters must contain valid JSON.");
-      return;
-    }
-
-    if (
-      parsedFilters === null ||
-      typeof parsedFilters !== "object" ||
-      Array.isArray(parsedFilters)
-    ) {
-      setErrorMessage("Filters must be a JSON object.");
-      return;
-    }
-
-    const images = formData.images
-      .split(",")
-      .map((image) => image.trim())
-      .filter(Boolean);
-
-    const colors = formData.colors
-      .split(",")
-      .map((color) => color.trim())
-      .filter(Boolean);
-
-    if (images.length === 0) {
-      setErrorMessage("Please provide at least one product image.");
-      return;
-    }
-
-    if (colors.length === 0) {
-      setErrorMessage("Please provide at least one product color.");
-      return;
-    }
-
-    // Preserve existing ratings and review counts when editing.
-    const existingProduct = products.find(
-      (product) => product._id === editingProductId
-    );
-
+    // Preserve existing images and append new Cloudinary URLs.
     const productData = {
       title: formData.title.trim(),
       subtitle: formData.subtitle.trim(),
@@ -250,40 +365,42 @@ const AdminProducts = () => {
       category: formData.category.trim(),
       rating: existingProduct?.rating ?? 0,
       reviewsCount: existingProduct?.reviewsCount ?? 0,
-      images,
+      images: [...existingImages, ...uploadedImages],
       colors,
       stock,
       isDiscounted: formData.isDiscounted,
-      discountPercent: formData.isDiscounted ? discountPercent : 0,
-      filters: parsedFilters
+      discountPercent: formData.isDiscounted
+        ? discountPercent
+        : 0,
+      filters: parsedFilters,
     };
 
-    setIsSaving(true);
-
-    try {
-      if (editingProductId) {
-        await updateAdminProduct(editingProductId, productData);
-        setSuccessMessage("Product updated successfully!");
-      } else {
-        await createAdminProduct(productData);
-        setSuccessMessage("Product created successfully!");
-      }
-
-      setShowProductForm(false);
-      setEditingProductId(null);
-      setFormData(createEmptyProductForm());
-
-      await loadProducts();
-    } catch (error) {
-      setErrorMessage(
-        error.message || "Unable to save the product."
-      );
-    } finally {
-      setIsSaving(false);
+    if (editingProductId) {
+      await updateAdminProduct(editingProductId, productData);
+      setSuccessMessage("Product updated successfully!");
+    } else {
+      await createAdminProduct(productData);
+      setSuccessMessage("Product created successfully!");
     }
-  };
 
-  // Delete a product after confirmation.
+    setShowProductForm(false);
+    setEditingProductId(null);
+    setFormData(createEmptyProductForm());
+    setSelectedImageFiles([]);
+    setPreviewImages([]);
+    setUploadProgress(0);
+
+    await loadProducts();
+  } catch (error) {
+    setErrorMessage(
+      error.message || "Unable to save the product."
+    );
+  } finally {
+    setIsSaving(false);
+    setIsUploadingImages(false);
+  }
+};
+
   const handleDeleteProduct = async (product) => {
     const confirmed = window.confirm(
       `Are you sure you want to delete "${product.title}"? This action cannot be undone.`
@@ -307,7 +424,8 @@ const AdminProducts = () => {
       }
 
       await loadProducts();
-    } catch (error) {
+    }
+      catch (error) {
       setErrorMessage(
         error.message || "Unable to delete the product."
       );
@@ -387,9 +505,7 @@ const AdminProducts = () => {
               </h2>
             </div>
 
-            <button
-              type="button"
-              className="admin-products-close-button"
+            <button type="button" className="admin-products-close-button"
               onClick={closeProductForm}
               disabled={isSaving}
               aria-label="Close product form"
@@ -469,19 +585,107 @@ const AdminProducts = () => {
                 />
               </label>
 
-              <label className="admin-form-full-width">
-                Product images *
-                <input
-                  name="images"
-                  value={formData.images}
-                  onChange={handleFormChange}
-                  placeholder="airpods-max-red.png, airpods-max-side.png"
-                  required
-                />
-                <span className="admin-form-help">
-                  Use exact filenames from src/assets/products, separated by commas.
+                 
+<div className="admin-form-full-width admin-image-upload-field">
+  <label htmlFor="product-image-upload">
+    Product images *
+  </label>
+
+  <input
+    id="product-image-upload"
+    type="file"
+    accept="image/jpeg,image/png,image/webp"
+    multiple
+    onChange={handleImageFilesChange}
+    disabled={isSaving}
+  />
+
+  <span className="admin-form-help">
+    Select one or more JPG, PNG, or WEBP images.
+    Maximum 5 MB per image. New images upload when you save
+    the product.
+  </span>
+
+  {/* Existing images from MongoDB */}
+  {formData.images
+    .split(",")
+    .map((image) => image.trim())
+    .filter(Boolean).length > 0 && (
+    <div className="admin-image-preview-section">
+      <h3>Existing product images</h3>
+
+      <div className="admin-image-preview-grid">
+        {formData.images
+          .split(",")
+          .map((image) => image.trim())
+          .filter(Boolean)
+          .map((image, index) => {
+            const imageUrl = resolveProductImage(image);
+
+            return (
+              <div
+                className="admin-image-preview-card"
+                key={`${image}-${index}`}
+              >
+                {imageUrl ? (
+                  <img
+                    src={imageUrl}
+                    alt={`Product image ${index + 1}`}
+                  />
+                ) : (
+                  <div className="admin-image-preview-missing">
+                    Preview unavailable
+                  </div>
+                )}
+
+                <span title={image}>
+                  {image.split("/").pop()}
                 </span>
-              </label>
+
+                <button
+                  type="button"
+                  onClick={() => removeExistingImage(image)}
+                  disabled={isSaving}
+                >
+                  Remove
+                </button>
+              </div>
+            );
+          })}
+      </div>
+    </div>
+  )}
+
+  {/* Newly selected files */}
+  {previewImages.length > 0 && (
+    <div className="admin-image-preview-section">
+      <h3>New images to upload</h3>
+
+      <div className="admin-image-preview-grid">
+        {previewImages.map(({ file, url }, index) => (
+          <div
+            className="admin-image-preview-card"
+            key={`${file.name}-${index}`}
+          >
+            <img src={url} alt={file.name} />
+
+            <span title={file.name}>
+              {file.name}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )}
+
+  {isUploadingImages && (
+    <p className="admin-image-upload-progress" role="status">
+      Uploading image {uploadProgress} of{" "}
+      {selectedImageFiles.length} to Cloudinary...
+    </p>
+  )}
+</div>
+        
 
               <label className="admin-form-full-width">
                 Product colors *

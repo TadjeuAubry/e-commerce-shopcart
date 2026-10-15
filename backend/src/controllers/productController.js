@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const productService = require("../services/productService");
+const cloudinary = require("../config/cloudinary");
 
 //get a product
 const getProducts = async (req, res, next) => {
@@ -122,10 +123,59 @@ const deleteProduct = async (req, res, next) => {
   }
 };
 
+
+const uploadProductImage = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Please select an image to upload.",
+      });
+    }
+
+    // Upload the image buffer to Cloudinary.
+    const uploadedImage = await new Promise(
+      (resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            folder: "shopcart/products",
+            resource_type: "image",
+          },
+          (error, result) => {
+            if (error) {
+              return reject(error);
+            }
+
+            resolve(result);
+          }
+        );
+
+        uploadStream.end(req.file.buffer);
+      }
+    );
+
+    res.status(201).json({
+      success: true,
+      message: "Product image uploaded successfully.",
+      data: {
+        url: uploadedImage.secure_url,
+        publicId: uploadedImage.public_id,
+        format: uploadedImage.format,
+        width: uploadedImage.width,
+        height: uploadedImage.height,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
 module.exports = {
   getProducts,
   getProductById,
   createProduct,
   updateProduct,
-  deleteProduct
+  deleteProduct,
+  uploadProductImage,
 };

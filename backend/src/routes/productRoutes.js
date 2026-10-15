@@ -3,6 +3,7 @@ const productController = require("../controllers/productController");
 const validateProduct = require("../validators/productValidator");
 const authMiddleware = require("../middleware/authMiddleware");
 const roleMiddleware = require("../middleware/roleMiddleware");
+const handleImageUpload = require("../middleware/uploadImage");
 
 const router = express.Router();
 
@@ -15,5 +16,7 @@ router.post("/", authMiddleware, roleMiddleware("admin"), validateProduct, produ
 router.put( "/:id", authMiddleware, roleMiddleware("admin"), productController.updateProduct);
 
 router.delete( "/:id", authMiddleware, roleMiddleware("admin"), productController.deleteProduct);
+
+router.post( "/upload-image", authMiddleware, roleMiddleware("admin"), handleImageUpload, productController.uploadProductImage );
 
 module.exports = router;
