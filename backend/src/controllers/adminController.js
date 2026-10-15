@@ -50,7 +50,6 @@ const updateUser = async (req, res, next) => {
   }
 };
 
-// Activate or deactivate a user's account
 const updateUserStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -94,7 +93,6 @@ const deleteUser = async (req, res, next) => {
   }
 };
 
-// 6. Get all customer orders
 const getAllOrders = async (req, res, next) => {
   try {
     const orders = await adminService.getAllOrders();
@@ -110,7 +108,6 @@ const getAllOrders = async (req, res, next) => {
 };
 
 
-// 7. Update an order's status
 const updateOrderStatus = async (req, res, next) => {
   try {
     const { id } = req.params;

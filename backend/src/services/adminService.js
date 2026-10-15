@@ -161,21 +161,18 @@ const updateUserStatus = async (userId, adminId, isActive) => {
 };
 
 
-// Delete a user safely
 const deleteUser = async (userId, adminId) => {
-  // Prevent an admin from deleting their own account
+  
   if (String(userId) === String(adminId)) {
     throw new Error("You cannot delete your own admin account");
   }
 
-  // Find the user
   const user = await User.findById(userId).select("-password");
 
   if (!user) {
     throw new Error("User not found");
   }
 
-  // Protect the last active administrator
   if (user.role === "admin" && user.isActive) {
     const activeAdminCount = await User.countDocuments({
       role: "admin",
@@ -189,7 +186,6 @@ const deleteUser = async (userId, adminId) => {
     }
   }
 
-  // this preserve the user's order history
   const existingOrder = await Order.findOne({ userId });
 
   if (existingOrder) {
@@ -206,7 +202,6 @@ const deleteUser = async (userId, adminId) => {
 };
 
 
- // Get all customer orders for the admin dashboard
 const getAllOrders = async () => {
   const orders = await Order.find()
     .populate("userId", "name email")
@@ -215,7 +210,10 @@ const getAllOrders = async () => {
   return orders;
 };
 
+
 const updateOrderStatus = async (orderId, orderStatus) => {
+  const Product = require("../models/Product");
+
   const allowedStatuses = [
     "pending",
     "confirmed",
@@ -235,9 +233,58 @@ const updateOrderStatus = async (orderId, orderStatus) => {
     throw new Error("Order not found");
   }
 
-  order.orderStatus = orderStatus;
+  // Do not allow a cancelled order to be reopened.
+  if (order.orderStatus === "cancelled") {
+    throw new Error("A cancelled order cannot be updated");
+  }
 
-  await order.save();
+  // Do not cancel an order that has already been delivered.
+  if (
+    orderStatus === "cancelled" &&
+    order.orderStatus === "delivered"
+  ) {
+    throw new Error("A delivered order cannot be cancelled");
+  }
+
+  if (orderStatus === "cancelled") {
+    const restoredProducts = [];
+
+    try {
+      for (const item of order.items) {
+        const result = await Product.updateOne(
+          { _id: item.productId },
+          { $inc: { stock: item.quantity } }
+        );
+
+        if (result.matchedCount !== 1) {
+          throw new Error(
+            `Could not restore stock for ${item.title}`
+          );
+        }
+
+        restoredProducts.push({
+          productId: item.productId,
+          quantity: item.quantity
+        });
+      }
+
+      order.orderStatus = "cancelled";
+      await order.save();
+    } catch (error) {
+      
+      for (const item of restoredProducts.reverse()) {
+        await Product.updateOne(
+          { _id: item.productId },
+          { $inc: { stock: -item.quantity } }
+        );
+      }
+
+      throw error;
+    }
+  } else {
+    order.orderStatus = orderStatus;
+    await order.save();
+  }
 
   return Order.findById(orderId).populate( "userId", "name email" );
 };

@@ -1,6 +1,17 @@
 const Cart = require("../models/Cart");
 const Product = require("../models/Product");
 
+const validateQuantity = (quantity) => {
+  if (
+    !Number.isInteger(quantity) ||
+    quantity < 1
+  ) {
+    throw new Error(
+      "Quantity must be a positive whole number"
+    );
+  }
+};
+
 
 const getCart = async (userId) => {
   const cart = await Cart.findOne({ userId }).populate(
@@ -11,6 +22,9 @@ const getCart = async (userId) => {
 };
 
 const addToCart = async (userId, productId, quantity) => {
+    
+  validateQuantity(quantity);
+
   const product = await Product.findById(productId);
 
   if (!product) {
@@ -63,6 +77,8 @@ const addToCart = async (userId, productId, quantity) => {
 
 
 const updateCartItem = async (userId, productId, quantity) => {
+  validateQuantity(quantity);
+  
   const product = await Product.findById(productId);
 
   if (!product) {

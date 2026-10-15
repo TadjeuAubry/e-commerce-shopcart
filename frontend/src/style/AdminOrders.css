@@ -282,6 +282,36 @@
   font-size: 18px;
 }
 
+
+.orders-heading-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.orders-dashboard-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border: 1px solid #198754;
+  border-radius: 8px;
+  background-color: #ffffff;
+  color: #198754;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.orders-dashboard-btn:hover {
+  background-color: #198754;
+  color: #ffffff;
+}
+
+
 @media (max-width: 600px) {
   .order-details-modal {
     padding: 18px;
@@ -290,6 +320,17 @@
   .order-details-grid {
     grid-template-columns: 1fr;
   }
+
+  .orders-heading-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .orders-dashboard-btn,
+  .orders-refresh-btn {
+    flex: 1;
+  }
+
 }
 
 @media (max-width: 768px) {

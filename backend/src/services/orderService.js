@@ -1,8 +1,9 @@
+
 const Cart = require("../models/Cart");
 const Order = require("../models/Order");
+const Product = require("../models/Product");
 
 const createOrder = async (userId, shippingAddress) => {
-
   const cart = await Cart.findOne({ userId }).populate(
     "items.productId"
   );
@@ -15,16 +16,30 @@ const createOrder = async (userId, shippingAddress) => {
     throw new Error("Cannot create an order from an empty cart");
   }
 
-  let totalAmount = 0;
+  const originalItems = cart.items.map((item) => ({
+    productId: item.productId?._id || item.productId,
+    quantity: item.quantity
+  }));
 
+  let totalAmount = 0;
   const orderItems = [];
 
-  // Check every cart item
   for (const item of cart.items) {
     const product = item.productId;
 
     if (!product) {
-      throw new Error("One of the products in the cart no longer exists");
+      throw new Error(
+        "One of the products in the cart no longer exists"
+      );
+    }
+
+    if (
+      !Number.isInteger(item.quantity) ||
+      item.quantity < 1
+    ) {
+      throw new Error(
+        `Invalid quantity for ${product.title}`
+      );
     }
 
     if (item.quantity > product.stock) {
@@ -33,9 +48,7 @@ const createOrder = async (userId, shippingAddress) => {
       );
     }
 
-    const itemTotal = product.price * item.quantity;
-
-    totalAmount += itemTotal;
+    totalAmount += product.price * item.quantity;
 
     orderItems.push({
       productId: product._id,
@@ -48,37 +61,78 @@ const createOrder = async (userId, shippingAddress) => {
     });
   }
 
-  // Create the order
-  const order = await Order.create({
-    userId,
-    items: orderItems,
-    totalAmount,
-    shippingAddress,
-    paymentStatus: "pending",
-    orderStatus: "pending"
-  });
+  const stockChanges = [];
+  let createdOrder = null;
 
-  // this rempty the cart after the order has been created
-  cart.items = [];
-  await cart.save();
+  try {
+    
+    for (const item of orderItems) {
+      const result = await Product.updateOne(
+        {
+          _id: item.productId,
+          stock: { $gte: item.quantity }
+        },
+        {
+          $inc: { stock: -item.quantity }
+        }
+      );
 
-  return order;
+      if (result.modifiedCount !== 1) {
+        throw new Error(
+          `Not enough stock available for ${item.title}. Please refresh your cart.`
+        );
+      }
+
+      stockChanges.push({
+        productId: item.productId,
+        quantity: item.quantity
+      });
+    }
+
+    createdOrder = await Order.create({
+      userId,
+      items: orderItems,
+      totalAmount,
+      shippingAddress,
+      paymentStatus: "pending",
+      orderStatus: "pending"
+    });
+
+    cart.items = [];
+    await cart.save();
+
+    return createdOrder;
+  } catch (error) {
+
+    if (createdOrder) {
+      await Order.deleteOne({ _id: createdOrder._id });
+    }
+
+    for (const change of stockChanges.reverse()) {
+      await Product.updateOne(
+        { _id: change.productId },
+        { $inc: { stock: change.quantity } }
+      );
+    }
+
+    await Cart.updateOne(
+      { _id: cart._id },
+      { $set: { items: originalItems } }
+    );
+
+    throw error;
+  }
 };
 
 const getUserOrders = async (userId) => {
-  const orders = await Order.find({ userId })
-    .sort({ createdAt: -1 });
-
-  return orders;
+  return Order.find({ userId }).sort({ createdAt: -1 });
 };
 
 const getOrderById = async (userId, orderId) => {
-  const order = await Order.findOne({
+  return Order.findOne({
     _id: orderId,
     userId
   });
-
-  return order;
 };
 
 module.exports = {

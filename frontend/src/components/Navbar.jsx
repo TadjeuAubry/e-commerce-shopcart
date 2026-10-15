@@ -1,55 +1,5 @@
-// import { NavLink } from "react-router-dom";
-// import "../style/Navbar.css"
-// import Logo from "../assets/home/Logo.jpg";
-
-// const Navbar = () => {
-//   return (
-//     <header className="shopcart-header">
-//       <div className="top-bar">
-//         <p> Phone: +237-671-068-219 </p>
-//         <p>  Free delivery on selected orders  </p>
-        
-//       </div>
-
-//       <nav className="navbar">
-
-//         <NavLink to="/" className="logo-placeholder">
-//            <img src={Logo} alt="logo" />
-//           <span>SHOPCART</span>
-//         </NavLink>
-
-//         <div className="nav-links">
-
-//           <NavLink to="/">  Home </NavLink>
-//           <NavLink to="/products"> Categories </NavLink>
-//           <NavLink to="/products">Deals </NavLink>
-//           <NavLink to="/products"> What's New </NavLink>
-//           <NavLink to="/products"> Delivery</NavLink>
-
-//         </div>
-//         <div className="search-container">
-//           <input type="text"  placeholder="Search products" aria-label="Search products"/>
-//         </div>
-
-//         <div className="nav-actions">
-
-//           <NavLink to="/login">Login</NavLink>
-//           <NavLink to="/register">Register</NavLink>
-//           <NavLink to="/account">Account</NavLink>
-//           <NavLink to="/cart">Cart</NavLink>
-
-//         </div>
-
-//       </nav>
-//     </header>
-//   );
-// };
-
-// export default Navbar;
-
-
 import { useEffect, useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useCart } from "../context/CartContext";
 import { getProducts } from "../services/productService";
 import "../style/Navbar.css";
@@ -57,12 +7,11 @@ import Logo from "../assets/home/Logo.jpg";
 
 const readAuth = () => {
   const token = localStorage.getItem("shopcartToken");
+
   let user = null;
 
   try {
-    user = JSON.parse(
-      localStorage.getItem("shopcartUser") || "null"
-    );
+    user = JSON.parse(localStorage.getItem("shopcartUser") || "null");
   } catch {
     user = null;
   }
@@ -75,58 +24,56 @@ const readAuth = () => {
 
 const Navbar = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { cartItems } = useCart();
 
   const [auth, setAuth] = useState(readAuth);
   const [searchTerm, setSearchTerm] = useState("");
   const [categories, setCategories] = useState([]);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Keep the navigation synchronized with login/logout.
   useEffect(() => {
-    const syncAuth = () => setAuth(readAuth());
+    const syncAuth = () => {
+      setAuth(readAuth());
+    };
 
-    window.addEventListener( "shopcart-auth-changed",syncAuth );
-
+    window.addEventListener("shopcart-auth-changed", syncAuth);
     window.addEventListener("storage", syncAuth);
 
     return () => {
-      window.removeEventListener(
-        "shopcart-auth-changed",
-        syncAuth
-      );
-
+      window.removeEventListener("shopcart-auth-changed", syncAuth);
       window.removeEventListener("storage", syncAuth);
     };
   }, []);
 
-  // Load category names from existing backend products.
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname, location.search]);
+
   useEffect(() => {
     let isMounted = true;
 
     const loadCategories = async () => {
       try {
         const products = await getProducts();
-
         const uniqueCategories = new Map();
 
-        (Array.isArray(products) ? products : []).forEach(
-          (product) => {
-            const category = product.category?.trim();
+        (Array.isArray(products) ? products : []).forEach((product) => {
+          const category = product.category?.trim();
 
-            if (!category) return;
+          if (!category) return;
 
-            const key = category.toLowerCase();
+          const key = category.toLowerCase();
 
-            if (!uniqueCategories.has(key)) {
-              uniqueCategories.set(key, category);
-            }
+          if (!uniqueCategories.has(key)) {
+            uniqueCategories.set(key, category);
           }
-        );
+        });
 
         if (isMounted) {
           setCategories(
-            Array.from(uniqueCategories.values()).sort(
-              (a, b) => a.localeCompare(b)
+            Array.from(uniqueCategories.values()).sort((a, b) =>
+              a.localeCompare(b)
             )
           );
         }
@@ -142,17 +89,19 @@ const Navbar = () => {
     };
   }, []);
 
-  // Count products in the current customer's cart.
+  // Calculate the total quantity of items in the cart.
   const cartCount = cartItems.reduce(
     (total, item) => total + Number(item.quantity || 0),
     0
   );
 
-  // Search by product name, description, or category.
+  // Search products.
   const handleSearch = (event) => {
     event.preventDefault();
 
     const query = searchTerm.trim();
+
+    setIsMobileMenuOpen(false);
 
     if (!query) {
       navigate("/products");
@@ -162,120 +111,183 @@ const Navbar = () => {
     navigate(`/products?search=${encodeURIComponent(query)}`);
   };
 
-  // Clear the local authentication details on logout.
+  // Log out the current user.
   const handleLogout = () => {
     localStorage.removeItem("shopcartToken");
     localStorage.removeItem("shopcartUser");
 
-    window.dispatchEvent(
-      new Event("shopcart-auth-changed")
-    );
+    window.dispatchEvent(new Event("shopcart-auth-changed"));
+
+    setIsMobileMenuOpen(false);
 
     navigate("/login", { replace: true });
+  };
+
+  // Toggle the mobile navigation panel.
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen((open) => !open);
   };
 
   const isAdmin = auth.user?.role === "admin";
 
   return (
     <header className="shopcart-header">
-
+      {/* Top information bar */}
       <div className="top-bar">
         <p>☎ +237-671-068-219</p>
         <p>Free delivery on selected orders</p>
       </div>
 
-      <nav className="navbar">
-
-        {/* Logo */}
-        <NavLink to="/" className="logo-placeholder">
+      {/* Main navigation */}
+      <nav className="navbar" aria-label="Main navigation">
+        {/* ShopCart logo */}
+        <NavLink
+          to="/"
+          className="logo-placeholder"
+          aria-label="ShopCart home"
+        >
           <img src={Logo} alt="ShopCart logo" />
           <span>SHOPCART</span>
         </NavLink>
 
-      
-        <div className="nav-links">
+        {/* Mobile menu toggle with your SVG icons */}
+        <button
+          type="button"
+          className="mobile-menu-toggle"
+          onClick={toggleMobileMenu}
+          aria-label={
+            isMobileMenuOpen
+              ? "Close navigation menu"
+              : "Open navigation menu"
+          }
+          aria-expanded={isMobileMenuOpen}
+          aria-controls="shopcart-navigation"
+        >
+          {isMobileMenuOpen ? (
+            /* Close icon */
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              height="24px"
+              viewBox="0 -960 960 960"
+              width="24px"
+              fill="#1f1f1f"
+              aria-hidden="true"
+            >
+              <path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z" />
+            </svg>
+          ) : (
+            /* Hamburger menu icon */
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              height="24px"
+              viewBox="0 -960 960 960"
+              width="24px"
+              fill="#1f1f1f"
+              aria-hidden="true"
+            >
+              <path d="M120-240v-80h720v80H120Zm0-200v-80h720v80H120Zm0-200v-80h720v80H120Z" />
+            </svg>
+          )}
+        </button>
 
-          <NavLink to="/" end> Home </NavLink>
-
-          <div className="nav-category-menu">
-            <NavLink to="/products" className="nav-category-trigger" aria-label="Browse all products and categories" >
-              Categories 
-             <span aria-hidden="true">⌄</span>
+        {/* Navigation content: collapses on mobile */}
+        <div
+          id="shopcart-navigation"
+          className={`navbar-content ${
+            isMobileMenuOpen ? "is-open" : ""
+          }`}
+        >
+          {/* Main links */}
+          <div className="nav-links">
+            <NavLink to="/" end>
+              Home
             </NavLink>
 
-            <div className="nav-category-dropdown">
-              <NavLink to="/products">
-                All Products
+            {/* Dynamic categories dropdown */}
+            <div className="nav-category-menu">
+              <NavLink
+                to="/products"
+                className="nav-category-trigger"
+                aria-label="Browse all products and categories"
+              >
+                Categories <span aria-hidden="true">⌄</span>
               </NavLink>
 
-              {categories.map((category) => (
-                <NavLink key={category}
-                  to={`/products?category=${encodeURIComponent(
-                    category
-                  )}`}
-                >
-                  {category}
-                </NavLink>
-              ))}
+              <div className="nav-category-dropdown">
+                <NavLink to="/products">All Products</NavLink>
+
+                {categories.map((category) => (
+                  <NavLink
+                    key={category}
+                    to={`/products?category=${encodeURIComponent(category)}`}
+                  >
+                    {category}
+                  </NavLink>
+                ))}
+              </div>
             </div>
+
+            <NavLink to="/products?deals=true">Deals</NavLink>
+
+            <NavLink to="/products?sort=newest">What's New</NavLink>
+
+            <a href="/#delivery-info">Delivery</a>
           </div>
 
-          <NavLink to="/products?deals=true"> Deals </NavLink>
-          <NavLink to="/products?sort=newest"> What's New </NavLink>
+          {/* Product search */}
+          <form
+            className="search-container"
+            onSubmit={handleSearch}
+            role="search"
+          >
+            <input
+              type="search"
+              placeholder="Search products..."
+              aria-label="Search products"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+            />
 
-          <a href="/#delivery-info"> Delivery </a>
+            <button type="submit" aria-label="Submit search">
+              <span aria-hidden="true">⌕</span>
+            </button>
+          </form>
 
-        </div>
+          {/* Account and cart actions */}
+          <div className="nav-actions">
+            {auth.isLoggedIn ? (
+              <>
+                <NavLink to={isAdmin ? "/admin" : "/account"}>
+                  {isAdmin ? "Admin" : "Account"}
+                </NavLink>
 
-        <form className="search-container" onSubmit={handleSearch} role="search">
-          <input
-            type="search"
-            placeholder="Search products..."
-            aria-label="Search products"
-            value={searchTerm}
-            onChange={(event) =>
-              setSearchTerm(event.target.value)
-            }
-          />
+                <button
+                  type="button"
+                  className="nav-logout-button"
+                  onClick={handleLogout}
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <NavLink to="/login">Login</NavLink>
 
-          <button type="submit" aria-label="Submit search">
-            <span aria-hidden="true">⌕</span>
-          </button>
-        </form>
-
-        <div className="nav-actions">
-
-          {auth.isLoggedIn ? (
-            <>
-              <NavLink to={isAdmin ? "/admin" : "/account"}>
-                {isAdmin ? "Admin" : "Account"}
-              </NavLink>
-
-              <button type="button" className="nav-logout-button" onClick={handleLogout} >
-                Logout
-              </button>
-            </>
-          ) : (
-            <>
-              <NavLink to="/login">Login</NavLink>
-              <NavLink to="/register" className="nav-register-link">
-                Register
-              </NavLink>
-            </>
-          )}
-
-          <NavLink to="/cart" className="nav-cart-link">
-            Cart
-
-            {cartCount > 0 && (
-              <span className="nav-cart-count">
-                {cartCount}
-              </span>
+                <NavLink to="/register" className="nav-register-link">
+                  Register
+                </NavLink>
+              </>
             )}
-          </NavLink>
 
+            <NavLink to="/cart" className="nav-cart-link">
+              Cart
+
+              {cartCount > 0 && (
+                <span className="nav-cart-count">{cartCount}</span>
+              )}
+            </NavLink>
+          </div>
         </div>
-
       </nav>
     </header>
   );

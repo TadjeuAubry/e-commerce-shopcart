@@ -20,7 +20,6 @@ const createOrder = async (req, res, next) => {
   }
 };
 
-// Get all orders belonging to the current user
 const getUserOrders = async (req, res, next) => {
   try {
     const orders = await orderService.getUserOrders(
@@ -37,7 +36,6 @@ const getUserOrders = async (req, res, next) => {
   }
 };
 
-// this get one order belonging to the current user
 const getOrderById = async (req, res, next) => {
   try {
     const { id } = req.params;

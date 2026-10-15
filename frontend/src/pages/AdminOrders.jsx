@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { getAdminOrders, updateAdminOrderStatus,} from "../services/adminService";
 import "../style/AdminOrders.css";
 
@@ -151,20 +152,24 @@ const AdminOrders = () => {
  
   return (
     <section className="admin-orders-page">
-      <div className="admin-orders-heading">
-        <div>
-          <h1>Manage Orders</h1>
-          <p>View customer orders and update their status.</p>
-        </div>
+     
+<div className="admin-orders-heading">
+  <div>
+    <h1>Manage Orders</h1>
+    <p>View customer orders and update their status.</p>
+  </div>
 
-        <button
-          type="button"
-          className="orders-refresh-btn"
-          onClick={loadOrders}
-        >
-          Refresh
-        </button>
-      </div>
+  <div className="orders-heading-actions">
+    <Link to="/admin" className="orders-dashboard-btn">
+      ← Back to Admin Dashboard
+    </Link>
+
+    <button type="button" className="orders-refresh-btn" onClick={loadOrders} >
+      Refresh
+    </button>
+  </div>
+</div>
+
 
       {error && <p className="orders-error">{error}</p>}
       {notice && <p className="orders-notice">{notice}</p>}
